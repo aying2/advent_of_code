@@ -1,7 +1,8 @@
+use std::collections::{HashMap, HashSet};
 use std::ops::{Add, AddAssign, Neg, Sub};
 use std::{fs, usize};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 enum Direction {
     Up,
     Down,
@@ -9,7 +10,7 @@ enum Direction {
     Right,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 struct Point {
     x: i32,
     y: i32,
@@ -52,7 +53,7 @@ impl Sub for Point {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 struct Guard {
     dir: Direction,
     pos: Point,
@@ -83,6 +84,11 @@ impl Guard {
         self.step(grid);
     }
 
+    fn marked_step_alt(&mut self, grid: &mut Vec<Vec<char>>) {
+        grid[self.pos.x as usize][self.pos.y as usize] = 'O';
+        self.step(grid);
+    }
+
     fn step(&mut self, grid: &Vec<Vec<char>>) {
         let planned = loop {
             let mut tmp = self.pos;
@@ -100,8 +106,6 @@ impl Guard {
                         Direction::Left => self.dir = Direction::Up,
                         Direction::Right => self.dir = Direction::Down,
                     }
-                    // allow steps which are just turns for counting purposes
-                    break self.pos;
                 } else {
                     break tmp;
                 }
@@ -133,147 +137,89 @@ fn simulate(grid: &mut Vec<Vec<char>>, guard: &mut Guard) -> usize {
         .count();
 }
 
-fn get_test_cases_around_point(pos: &Point, grid: &Vec<Vec<char>>) -> Vec<Guard> {
-    let mut ret = Vec::new();
+fn get_path(grid: &Vec<Vec<char>>, guard: &mut Guard) -> Vec<(Point, Guard)> {
+    // NOTE: we do NOT want the first position to be counted in the path here
+    // because if we place an obstacle there and we start there
+    // the guard stepping won't work properly
+    // I ended up getting the right answer by subtracting out this case
+    // manually originally
+    let mut path = Vec::new();
 
-    let tmp = *pos + Point::new(-1, 0);
-    if is_in_grid(&tmp, grid) && grid[tmp.x as usize][tmp.y as usize] != '#' {
-        ret.push(Guard::new(Direction::Down, tmp));
-    }
-
-    let tmp = *pos + Point::new(1, 0);
-    if is_in_grid(&tmp, grid) && grid[tmp.x as usize][tmp.y as usize] != '#' {
-        ret.push(Guard::new(Direction::Up, tmp));
-    }
-
-    let tmp = *pos + Point::new(0, -1);
-    if is_in_grid(&tmp, grid) && grid[tmp.x as usize][tmp.y as usize] != '#' {
-        ret.push(Guard::new(Direction::Right, tmp));
-    }
-
-    let tmp = *pos + Point::new(0, 1);
-    if is_in_grid(&tmp, grid) && grid[tmp.x as usize][tmp.y as usize] != '#' {
-        ret.push(Guard::new(Direction::Left, tmp));
-    }
-
-    ret
-}
-
-fn get_test_cases(grid: &Vec<Vec<char>>) -> Vec<Guard> {
-    let mut ret = Vec::new();
-    for (i, line) in grid.iter().enumerate() {
-        for (j, c) in line.iter().enumerate() {
-            if *c == '#' {
-                ret.append(&mut get_test_cases_around_point(
-                    &Point::new(i as i32, j as i32),
-                    grid,
-                ));
-            }
-        }
-    }
-
-    ret
-}
-
-fn get_missing_obs_pos(obs_poses: &Vec<Guard>) -> Point {
-    assert_eq!(obs_poses.len(), 3);
-
-    let v1_0 = obs_poses[0].pos - obs_poses[1].pos;
-    let v1_2 = obs_poses[2].pos - obs_poses[1].pos;
-
-    let mut ret = obs_poses[2].pos + v1_0;
-
-    assert_eq!(ret, obs_poses[0].pos + v1_2);
-
-    let directions = vec![
-        Direction::Up,
-        Direction::Down,
-        Direction::Right,
-        Direction::Left,
-    ];
-
-    let obs_dirs = obs_poses.iter().map(|g| g.dir).collect::<Vec<_>>();
-    let missing_dirs = directions
-        .iter()
-        .filter(|v| !obs_dirs.contains(v))
-        .collect::<Vec<_>>();
-
-    assert_eq!(missing_dirs.len(), 1);
-
-    match missing_dirs[0] {
-        Direction::Up => ret += Point::new(-1, 0),
-        Direction::Down => ret += Point::new(1, 0),
-        Direction::Right => ret += Point::new(0, 1),
-        Direction::Left => ret += Point::new(0, -1),
-    }
-
-    return ret;
-}
-
-fn is_loopable(grid: &Vec<Vec<char>>, guard: &mut Guard) -> bool {
-    let grid = &mut grid.clone();
-
-    let mut obs_poses = Vec::new();
-    let start = guard.clone();
-
+    let mut visited = HashSet::new();
+    // put the first position in visited
+    // it's not enought to simply remove it from the path post hoc
+    // because the path might intersect with the first position again later on
+    visited.insert(guard.pos);
     let mut prev = guard.clone();
-
-    while is_in_grid(&guard.pos, grid) {
-        guard.step(grid);
-
-        if *guard == start {
-            return true;
+    while is_in_grid(&guard.pos, &grid) {
+        guard.step(&grid);
+        if !is_in_grid(&guard.pos, &grid) {
+            break;
         }
-
-        if guard.dir != prev.dir && obs_poses.len() < 3 {
-            obs_poses.push(prev);
-            if obs_poses.len() == 3 {
-                let missing_obs_pos = get_missing_obs_pos(&obs_poses);
-                if !is_in_grid(&missing_obs_pos, grid)
-                    || grid[missing_obs_pos.x as usize][missing_obs_pos.y as usize] == '#'
-                {
-                    return false;
-                }
-                grid[missing_obs_pos.x as usize][missing_obs_pos.y as usize] = '#';
-
-                println!("{:?}", get_missing_obs_pos(&obs_poses));
-            }
+        if !visited.contains(&guard.pos) {
+            // use HashSet to quickly check uniqueness of positions
+            // and vector to keep sequential order
+            visited.insert(guard.pos);
+            path.push((guard.pos, prev));
         }
 
         prev = guard.clone();
+    }
+    path
+}
+
+fn is_loop(grid: &Vec<Vec<char>>, guard: &mut Guard, visited_init: &HashSet<Guard>) -> bool {
+    let mut visited = visited_init.clone();
+    while is_in_grid(&guard.pos, grid) {
+        guard.step(grid);
+
+        if visited.contains(guard) {
+            return true;
+        }
+        visited.insert(guard.clone());
     }
 
     false
 }
 
-fn simulate_part2(grid: &Vec<Vec<char>>) -> usize {
-    let test_cases = get_test_cases(grid);
-
+fn simulate_part2(mut grid: Vec<Vec<char>>, guard: &Guard) -> usize {
+    let path = get_path(&grid, &mut guard.clone());
     let mut total = 0;
 
-    for test_case in test_cases {
-        println!("{:?}", test_case);
-        let mut guard = test_case.clone();
-
-        if is_loopable(grid, &mut guard) {
-            println!("booya");
+    let mut visited_init = HashSet::new();
+    for (obs_pos, start_guard) in path {
+        visited_init.insert(start_guard.clone());
+        assert_eq!(grid[obs_pos.x as usize][obs_pos.y as usize], 'X');
+        grid[obs_pos.x as usize][obs_pos.y as usize] = '#';
+        if is_loop(&grid, &mut start_guard.clone(), &visited_init) {
             total += 1;
         }
+
+        grid[obs_pos.x as usize][obs_pos.y as usize] = 'X';
     }
 
     total
 }
 
-const INPUT_PATH: &str = "input/example.txt";
+fn print_grid(grid: &Vec<Vec<char>>) {
+    println!(
+        "{}",
+        grid.iter()
+            .map(|v| v.iter().collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+const INPUT_PATH: &str = "input/input.txt";
 fn main() {
     let input = fs::read_to_string(INPUT_PATH).unwrap();
 
     let mut grid: Vec<Vec<_>> = input.lines().map(|line| line.chars().collect()).collect();
 
-    let mut guard = Guard::try_from(&grid).unwrap();
+    let guard = Guard::try_from(&grid).unwrap();
 
-    println!("{}", simulate(&mut grid, &mut guard));
+    println!("{}", simulate(&mut grid, &mut guard.clone()));
 
-    let grid: Vec<Vec<_>> = input.lines().map(|line| line.chars().collect()).collect();
-    println!("{}", simulate_part2(&grid));
+    println!("{}", simulate_part2(grid, &guard));
 }
