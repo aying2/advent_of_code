@@ -41,7 +41,12 @@ fn main() {
 
     let mut diffseqs_freqs = HashMap::new();
 
-    // slow as molasses
+    // NOTE: faster to use fixed-size array than VecDeque
+    // could probably make this faster using a single HashMap for all starting secrets and
+    // keeping track of whether a sequence has been seen for a starting secret
+    // in a HashMap of HashSets where the keys are sequences and the Sets contain the starting
+    // secret index
+    // then freqs would instead take the length of this Set
     let diffseq_prices_vec = input
         .lines()
         .map(|line| {
@@ -49,18 +54,15 @@ fn main() {
             let mut secret = line.parse::<i64>().unwrap();
             let mut ones_prev = ones_digit(secret);
 
-            let mut diffs = VecDeque::new();
-            for _ in 0..2000 {
+            let mut diffs = [0; 4];
+            for i in 0..2000 {
                 secret = step_secret(secret);
                 let ones = ones_digit(secret);
-                diffs.push_back(ones - ones_prev);
-                if diffs.len() == 4 {
-                    diffseqs_freqs
-                        .entry(diffs.clone())
-                        .and_modify(|e| *e += 1)
-                        .or_insert(0);
-                    diffseq_prices.entry(diffs.clone()).or_insert(ones);
-                    diffs.pop_front();
+                diffs.rotate_left(1);
+                diffs[3] = ones - ones_prev;
+                if i >= 3 {
+                    *diffseqs_freqs.entry(diffs).or_insert(0) += 1;
+                    diffseq_prices.entry(diffs).or_insert(ones);
                 }
 
                 ones_prev = ones;
