@@ -56,77 +56,56 @@ fn reorder_blocks(blocks: &mut Vec<Block>) {
     }
 }
 
-// fn try_run_swap(digit_run: &mut Run, space_runs: &mut Vec<Run>, space_idx: usize) -> bool {
-//     // TODO: need to merge space with adjacent after pushing to back
-//     // fix equal len swap to push to back
-//     if space_runs[space_idx].len == digit_run.len {
-//         (space_runs[space_idx].idx, digit_run.idx) = (digit_run.idx, space_runs[space_idx].idx);
-//
-//         // assume the rest of the vector is sorted so only search that partition
-//         // then offset the index
-//         let new_space_idx = space_runs[(space_idx + 1)..]
-//             .binary_search(&space_runs[space_idx])
-//             .unwrap_err()
-//             + (space_idx + 1);
-//
-//         space_runs.swap(space_idx, new_space_idx);
-//         return true;
-//     } else if space_runs[j].len > digit_runs[i].len {
-//         // println!("");
-//         // println!("{i}, {j}");
-//         // println!("{:?}", space_runs);
-//         // println!("");
-//         // println!("{:?}", digit_runs);
-//         space_runs.push(Run {
-//             block: Block::Space,
-//             len: digit_runs[i].len,
-//             idx: digit_runs[i].idx,
-//         });
-//         (space_runs[j].idx, digit_runs[i].idx) =
-//             (space_runs[j].idx + digit_runs[i].len, space_runs[j].idx);
-//         space_runs[j].len -= digit_runs[i].len;
-//         return true;
-//     }
-//
-//     false
-// }
+fn try_run_slop(space_runs: &mut Vec<Run>, space_idx: usize) -> {
+}
+
+fn try_run_swap(digit_run: &mut Run, space_runs: &mut Vec<Run>, space_idx: usize) -> bool {
+    // TODO: need to merge space with adjacent after pushing to back
+    // fix equal len swap to push to back
+    if space_runs[space_idx].len == digit_run.len {
+        (space_runs[space_idx].idx, digit_run.idx) = (digit_run.idx, space_runs[space_idx].idx);
+
+        // assume the rest of the vector is sorted so only search that partition
+        // then offset the index
+        let new_space_idx = space_runs[(space_idx + 1)..]
+            .binary_search(&space_runs[space_idx])
+            .unwrap_err()
+            + (space_idx + 1);
+
+        space_runs.swap(space_idx, new_space_idx);
+        return true;
+    } else if space_runs[j].len > digit_runs[i].len {
+        // println!("");
+        // println!("{i}, {j}");
+        // println!("{:?}", space_runs);
+        // println!("");
+        // println!("{:?}", digit_runs);
+        space_runs.push(Run {
+            block: Block::Space,
+            len: digit_runs[i].len,
+            idx: digit_runs[i].idx,
+        });
+        (space_runs[j].idx, digit_runs[i].idx) =
+            (space_runs[j].idx + digit_runs[i].len, space_runs[j].idx);
+        space_runs[j].len -= digit_runs[i].len;
+        return true;
+    }
+
+    false
+}
 
 fn order_and_merge_runs(mut digit_runs: Vec<Run>, mut space_runs: Vec<Run>) -> Vec<Run> {
     println!("{:?}", digit_runs);
     println!("{:?}", space_runs);
     for digit_run in digit_runs.iter_mut().rev() {
-        for space_idx in 0..space_runs.len() {
+        for i in 0..space_runs.len() {
             // only consider swapping with spaces from indexes earlier than digit
-            if space_runs[space_idx].idx >= digit_run.idx {
+            if space_runs[i].idx >= digit_run.idx {
                 break;
             }
-
-            if space_runs[space_idx].len == digit_run.len {
-                (space_runs[space_idx].idx, digit_run.idx) =
-                    (digit_run.idx, space_runs[space_idx].idx);
-
-                let removed = space_runs.remove(space_idx);
-                space_runs.push(removed);
-                break;
-            } else if space_runs[space_idx].len > digit_run.len {
-                space_runs.push(Run {
-                    block: Block::Space,
-                    len: digit_run.len,
-                    idx: digit_run.idx,
-                });
-
-                (space_runs[space_idx].idx, digit_run.idx) = (
-                    space_runs[space_idx].idx + digit_run.len,
-                    space_runs[space_idx].idx,
-                );
-                space_runs[space_idx].len -= digit_run.len;
-
+            if try_run_swap(digit_run, &mut space_runs, i) {
                 break;
             }
-
-            // if try_run_swap(digit_run, &mut space_runs, i) {
-            //     break;
-            // }
 
             // // TODO: need to merge space with adjacent after pushing to back
             // // fix equal len swap to push to back
@@ -200,7 +179,7 @@ fn compute_checksum(blocks: &Vec<Block>) -> i64 {
         .sum()
 }
 
-const INPUT_PATH: &str = "input/input.txt";
+const INPUT_PATH: &str = "input/example.txt";
 fn main() {
     let input = fs::read_to_string(INPUT_PATH).unwrap();
 

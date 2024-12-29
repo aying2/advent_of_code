@@ -47,6 +47,8 @@ fn main() {
     // in a HashMap of HashSets where the keys are sequences and the Sets contain the starting
     // secret index
     // then freqs would instead take the length of this Set
+    // could also keep track of see secret sequences like a river fed into by multiple streams
+    // but not sure if different seeds coalesce to the same sequence
     let diffseq_prices_vec = input
         .lines()
         .map(|line| {
