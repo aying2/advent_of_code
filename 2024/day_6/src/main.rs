@@ -110,6 +110,7 @@ impl Guard {
                     break tmp;
                 }
             } else {
+                // allow going out of bounds
                 break tmp;
             }
         };
