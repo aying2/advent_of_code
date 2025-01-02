@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct Point<T> {
@@ -9,12 +9,6 @@ pub struct Point<T> {
 impl<T> Point<T> {
     pub fn new(x: T, y: T) -> Self {
         Self { x, y }
-    }
-    pub fn dot(self, other: Self) -> T
-    where
-        T: Mul<Output = T> + Add<Output = T>,
-    {
-        self.x * other.x + self.y * other.y
     }
 }
 
